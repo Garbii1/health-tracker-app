@@ -88,9 +88,9 @@ const RegisterPage: NextPage = () => {
         <h1 className="text-2xl font-bold text-center text-primary mb-6">Create Account</h1>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {apiErrors.form && ( // Display generic form error
-            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            (<div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
               <span className="block sm:inline">{apiErrors.form}</span>
-            </div>
+            </div>)
           )}
 
           {/* Username */}

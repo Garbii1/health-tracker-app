@@ -40,14 +40,12 @@ const HealthMetricsChart: React.FC<HealthMetricsChartProps> = ({ data }) => {
            <p className="font-semibold">{label}</p>
            {payload.map((entry, index) => (
               // Check if value is defined and not undefined
-              entry.value !== undefined && (
-                 <p key={`item-${index}`} style={{ color: entry.color }}>
-                   {`${entry.name}: ${entry.value}`}
-                   {/* Add units */}
-                   {entry.name === 'Weight' && ' kg/lbs'}
-                   {entry.name === 'Heart Rate' && ' bpm'}
-                 </p>
-              )
+              (entry.value !== undefined && (<p key={`item-${index}`} style={{ color: entry.color }}>
+                {`${entry.name}: ${entry.value}`}
+                {/* Add units */}
+                {entry.name === 'Weight' && ' kg/lbs'}
+                {entry.name === 'Heart Rate' && ' bpm'}
+              </p>))
            ))}
          </div>
        );

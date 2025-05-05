@@ -100,7 +100,10 @@ const AddMetricPage: NextPage = () => {
     <ProtectedRoute>
       <Layout title="Add Health Metric">
         <div className="max-w-xl mx-auto mt-8">
-           <Link href="/dashboard" className="inline-flex items-center text-sm text-primary hover:text-primary-dark mb-4">
+           <Link
+             href="/dashboard"
+             className="inline-flex items-center text-sm text-primary hover:text-primary-dark mb-4"
+             legacyBehavior>
                <ArrowLeftIcon className="h-4 w-4 mr-1" />
                Back to Dashboard
            </Link>
