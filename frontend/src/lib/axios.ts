@@ -1,4 +1,5 @@
-import axios, { AxiosRequestConfig, InternalAxiosRequestConfig } from 'axios'; // Import Axios types
+// Remove AxiosError import if only using isAxiosError
+import axios, { InternalAxiosRequestConfig } from 'axios';
 
 // Create an Axios instance
 const apiClient = axios.create({
@@ -9,40 +10,37 @@ const apiClient = axios.create({
 });
 
 // Interceptor to add the auth token to requests
-// Use InternalAxiosRequestConfig for request interceptors
 apiClient.interceptors.request.use(
-  (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => { // Add types
-    // Check if running on the client side before accessing localStorage
+  (config: InternalAxiosRequestConfig): InternalAxiosRequestConfig => {
     if (typeof window !== 'undefined') {
       const token = localStorage.getItem('authToken');
-      if (token && config.headers) { // Check if headers object exists
+      if (token && config.headers) {
         config.headers['Authorization'] = `Token ${token}`;
       }
     }
     return config;
   },
   (error) => {
-    // Type the error if possible, otherwise use 'any'
     return Promise.reject(error);
   }
 );
 
 // Optional: Add response interceptor for error handling (e.g., redirect on 401)
 apiClient.interceptors.response.use(
-  response => response, // Response type is inferred or can be AxiosResponse<any>
-  (error: any) => { // Use 'any' or a more specific AxiosError type
-    if (error.response && error.response.status === 401) {
-      // Handle unauthorized access - e.g., clear token, redirect to login
-      if (typeof window !== 'undefined') {
-          console.error("Unauthorized access - 401");
-          // Optional: Clear stored token
-          localStorage.removeItem('authToken');
-          // Optional: Redirect to login page
-          // NOTE: Directly manipulating window.location can cause issues with Next.js router.
-          // It's often better to handle redirects within components using useRouter.
-          // Consider setting a state in AuthContext that triggers a redirect in a useEffect hook.
-          // window.location.href = '/login';
+  response => response,
+  (error) => {
+    // Check if it's an Axios error first
+    if (axios.isAxiosError(error)) {
+      if (error.response && error.response.status === 401) {
+        if (typeof window !== 'undefined') {
+            console.error("Unauthorized access - 401. Clearing token.");
+            localStorage.removeItem('authToken');
+            // Consider triggering logout via context/state instead of direct redirect
+            // window.location.href = '/login';
+        }
       }
+    } else {
+        console.error("Non-Axios error in response interceptor:", error);
     }
     return Promise.reject(error);
   }

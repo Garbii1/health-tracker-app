@@ -1,52 +1,50 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth'; // Adjust path
-import Layout from '@/components/common/Layout'; // Adjust path
+import { useAuth } from '@/hooks/useAuth';
+import Layout from '@/components/common/Layout';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useForm } from 'react-hook-form';
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import type { NextPage } from 'next'; // Optional: Type for Next.js page component
+import type { NextPage } from 'next';
 
-// Define Zod schema for validation
-const loginSchema = z.object({
+// Define Zod schema and EXPORT it
+export const loginSchema = z.object({
   username: z.string().min(1, { message: 'Username is required' }),
   password: z.string().min(1, { message: 'Password is required' }),
 });
 
-// Infer the type from the schema
 type LoginFormInputs = z.infer<typeof loginSchema>;
 
-const LoginPage: NextPage = () => { // Use NextPage type
+const LoginPage: NextPage = () => {
   const { loginAction, loading, isAuthenticated } = useAuth();
   const router = useRouter();
-  const [apiError, setApiError] = useState<string | null>(null); // Type state
+  const [apiError, setApiError] = useState<string | null>(null);
 
-  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({ // Use inferred type
+  const { register, handleSubmit, formState: { errors } } = useForm<LoginFormInputs>({
     resolver: zodResolver(loginSchema),
   });
 
-  // Redirect if already logged in
   useEffect(() => {
     if (isAuthenticated) {
       router.push('/dashboard');
     }
   }, [isAuthenticated, router]);
 
-
-  // Type the data parameter based on the inferred type
-  const onSubmit = async (data: LoginFormInputs) => {
-    setApiError(null); // Clear previous errors
-    const result = await loginAction(data); // loginAction expects this type now
+  const onSubmit: SubmitHandler<LoginFormInputs> = async (data) => {
+    setApiError(null);
+    const result = await loginAction(data);
     if (!result.success) {
-      // Handle specific backend errors if possible (type result.error if known)
-      if (result.error?.non_field_errors && Array.isArray(result.error.non_field_errors)) {
+        // Handle error type - assuming it might be string or obj with non_field_errors
+      if (typeof result.error === 'object' && result.error !== null && 'non_field_errors' in result.error && Array.isArray(result.error.non_field_errors)) {
         setApiError(result.error.non_field_errors.join(', '));
-      } else {
-        setApiError('Login failed. Please check your username and password.');
+      } else if (typeof result.error === 'string'){
+          setApiError(result.error);
+      }
+       else {
+        setApiError('Login failed. Please check username/password.');
       }
     }
-     // Redirect happens within loginAction on success
   };
 
   if (isAuthenticated) {
@@ -57,7 +55,6 @@ const LoginPage: NextPage = () => { // Use NextPage type
     <Layout title="Login">
       <div className="max-w-md mx-auto mt-10 bg-surface p-8 rounded-lg shadow-md">
         <h1 className="text-2xl font-bold text-center text-primary mb-6">Login</h1>
-        {/* Type the event handler if needed, though handleSubmit handles it */}
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           {apiError && (
             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
@@ -69,10 +66,9 @@ const LoginPage: NextPage = () => { // Use NextPage type
             <input
               type="text"
               id="username"
-              {...register('username')} // register is typed via useForm
+              {...register('username')}
               className={`w-full px-3 py-2 border rounded-md focus:ring-primary focus:border-primary ${errors.username ? 'border-red-500' : 'border-gray-300'}`}
             />
-             {/* Use optional chaining for safety */}
              {errors.username?.message && <p className="text-red-500 text-xs mt-1">{errors.username.message}</p>}
           </div>
           <div>
@@ -94,7 +90,8 @@ const LoginPage: NextPage = () => { // Use NextPage type
           </button>
         </form>
         <p className="text-center text-sm text-text_secondary mt-6">
-          Don't have an account?{' '}
+          {/* Use HTML entity for apostrophe */}
+          Don&apos;t have an account?{' '}
           <Link href="/register" className="text-primary hover:underline font-medium">
              Register here
           </Link>

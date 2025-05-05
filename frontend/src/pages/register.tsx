@@ -1,39 +1,40 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/hooks/useAuth'; // Adjust path
-import Layout from '@/components/common/Layout'; // Adjust path
+import { useAuth } from '@/hooks/useAuth';
+import Layout from '@/components/common/Layout';
 import Link from 'next/link';
 import { useRouter } from 'next/router';
-import { useForm, SubmitHandler } from 'react-hook-form'; // Import SubmitHandler
+import { useForm, SubmitHandler } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import type { NextPage } from 'next';
 
-// Define Zod schema for validation
-const registerSchema = z.object({
+// Define Zod schema and EXPORT it
+export const registerSchema = z.object({
   username: z.string().min(3, { message: 'Username must be at least 3 characters' }),
   email: z.string().email({ message: 'Invalid email address' }),
   password: z.string().min(8, { message: 'Password must be at least 8 characters' }),
-  password2: z.string(),
+  password2: z.string(), // Keep for validation
   first_name: z.string().optional(),
   last_name: z.string().optional(),
 }).refine(data => data.password === data.password2, {
   message: "Passwords don't match",
-  path: ["password2"], // path of error
+  path: ["password2"],
 });
 
-// Infer the type from the schema
+// Type for form inputs including password2
 type RegisterFormInputs = z.infer<typeof registerSchema>;
+// Type for data sent to API (excluding password2)
+type RegisterApiPayload = Omit<RegisterFormInputs, 'password2'>;
 
-// Define type for API errors (can be more specific if backend structure is known)
 interface ApiErrorType {
-    [key: string]: string | undefined; // Allows field names like 'username', 'email', etc.
-    form?: string; // For general form errors
+    [key: string]: string | undefined;
+    form?: string;
 }
 
 const RegisterPage: NextPage = () => {
   const { registerAction, loading, isAuthenticated } = useAuth();
   const router = useRouter();
-  const [apiErrors, setApiErrors] = useState<ApiErrorType>({}); // Type state for API errors
+  const [apiErrors, setApiErrors] = useState<ApiErrorType>({});
 
    const { register, handleSubmit, formState: { errors } } = useForm<RegisterFormInputs>({
       resolver: zodResolver(registerSchema),
@@ -43,39 +44,49 @@ const RegisterPage: NextPage = () => {
       }
    });
 
-  // Redirect if already logged in
   useEffect(() => {
     if (isAuthenticated) {
       router.push('/dashboard');
     }
   }, [isAuthenticated, router]);
 
-  // Use SubmitHandler with the inferred type
   const onSubmit: SubmitHandler<RegisterFormInputs> = async (data) => {
-    setApiErrors({}); // Clear previous API errors
-    // Ensure password2 is not sent to the backend if your API doesn't expect it
-    const { password2, ...payload } = data;
-    const result = await registerAction(payload); // Pass the cleaned payload
+    setApiErrors({});
+    // Manually create the payload excluding password2
+    const payload: RegisterApiPayload = {
+        username: data.username,
+        email: data.email,
+        password: data.password,
+        // Include optional fields only if they have a value (or send empty string based on API needs)
+        ...(data.first_name && { first_name: data.first_name }),
+        ...(data.last_name && { last_name: data.last_name }),
+    };
+
+    const result = await registerAction(payload); // Pass the explicitly created payload
 
     if (!result.success) {
-      if (typeof result.error === 'object' && result.error !== null) {
-         // Map backend field errors to our form state
-         const backendErrors: ApiErrorType = {};
-         for (const key in result.error) {
-            // Assuming error[key] is an array of strings from DRF
-            if (Array.isArray(result.error[key])) {
-                backendErrors[key] = result.error[key].join(', ');
-            } else {
-                 backendErrors[key] = String(result.error[key]); // Handle non-array errors
+        // Handle error response (assuming unknown type)
+        if (typeof result.error === 'object' && result.error !== null) {
+            const backendErrors: ApiErrorType = {};
+            for (const key in result.error) {
+                 // Type guard for safety, although backend should send string arrays
+                 if (Object.prototype.hasOwnProperty.call(result.error, key)) {
+                  const errorObject = result.error as Record<string, unknown>;
+                  const errorValue = errorObject[key];
+                     if (Array.isArray(errorValue)) {
+                         backendErrors[key] = errorValue.join(', ');
+                     } else {
+                         backendErrors[key] = String(errorValue);
+                     }
+                 }
             }
-         }
-         setApiErrors(backendErrors);
-      } else {
-         // Generic error
-         setApiErrors({ form: result.error || 'Registration failed. Please try again.' });
-      }
+            setApiErrors(backendErrors);
+        } else if (typeof result.error === 'string'){
+            setApiErrors({ form: result.error });
+        } else {
+            setApiErrors({ form: 'Registration failed. Please try again.' });
+        }
     }
-    // Redirect happens within registerAction on success
   };
 
   if (isAuthenticated) {
@@ -87,10 +98,10 @@ const RegisterPage: NextPage = () => {
       <div className="max-w-lg mx-auto mt-10 bg-surface p-8 rounded-lg shadow-md">
         <h1 className="text-2xl font-bold text-center text-primary mb-6">Create Account</h1>
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          {apiErrors.form && ( // Display generic form error
-            (<div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+          {apiErrors.form && (
+            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
               <span className="block sm:inline">{apiErrors.form}</span>
-            </div>)
+            </div>
           )}
 
           {/* Username */}

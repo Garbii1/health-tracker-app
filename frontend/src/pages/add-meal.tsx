@@ -9,11 +9,12 @@ import * as z from 'zod';
 import Link from 'next/link';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import type { NextPage } from 'next';
+import axios from 'axios'; // Import axios for type checking
 
 // Zod schema for meal form validation
 const mealSchema = z.object({
   name: z.string().min(1, { message: 'Meal name is required' }),
-  calories: z.coerce // Coerce attempts conversion
+  calories: z.coerce
     .number({ invalid_type_error: 'Calories must be a number' })
     .int({ message: 'Calories must be a whole number' })
     .positive({ message: 'Calories must be positive' }),
@@ -47,12 +48,11 @@ const AddMealPage: NextPage = () => {
           name: data.name,
           calories: data.calories,
       };
-      // Convert timestamp if present
        if (data.timestamp) {
           try {
              payload.timestamp = new Date(data.timestamp).toISOString();
-          } catch (dateError) {
-              console.error("Invalid date format for timestamp:", data.timestamp);
+          } catch (error) { // Catch specific date conversion error
+              console.error("Invalid date format for timestamp:", data.timestamp, error); // Log the error
               setApiError("Invalid date/time provided for timestamp.");
               setLoading(false);
               return;
@@ -60,12 +60,18 @@ const AddMealPage: NextPage = () => {
       }
 
       await apiClient.post('/meals/', payload);
-      router.push('/dashboard'); // Redirect on success
-    } catch (err: any) {
-      console.error('Failed to add meal:', err.response?.data || err.message);
-      const errorDetail = err.response?.data?.detail || JSON.stringify(err.response?.data) || 'Failed to save meal. Please try again.';
+      router.push('/dashboard');
+    } catch (error) { // Use generic error, check type below
+        let errorDetail = 'Failed to save meal. Please try again.';
+         if (axios.isAxiosError(error)) {
+             console.error('Failed to add meal (Axios):', error.response?.data || error.message);
+             const backendError = error.response?.data;
+             errorDetail = backendError?.detail || JSON.stringify(backendError) || error.message;
+         } else {
+              console.error('Failed to add meal (Non-Axios):', error);
+         }
       setApiError(errorDetail);
-      setLoading(false);
+      setLoading(false); // Ensure loading stops on error
     }
   };
 
@@ -73,10 +79,7 @@ const AddMealPage: NextPage = () => {
     <ProtectedRoute>
       <Layout title="Add Meal Log">
         <div className="max-w-xl mx-auto mt-8">
-           <Link
-             href="/dashboard"
-             className="inline-flex items-center text-sm text-primary hover:text-primary-dark mb-4"
-             legacyBehavior>
+           <Link href="/dashboard" className="inline-flex items-center text-sm text-primary hover:text-primary-dark mb-4">
                <ArrowLeftIcon className="h-4 w-4 mr-1" />
                Back to Dashboard
            </Link>

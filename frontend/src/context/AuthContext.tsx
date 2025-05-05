@@ -1,75 +1,78 @@
-import React, { createContext, useState, useEffect, useContext, ReactNode } from 'react';
-import apiClient from '@/lib/axios'; // Adjust path if needed
+import React, { createContext, useState, useEffect, ReactNode } from 'react';
+import apiClient from '@/lib/axios';
 import { useRouter } from 'next/router';
+// Import only 'axios' for the isAxiosError check, removed unused AxiosError type
+import axios from 'axios';
 
-// Define types for User and Context
+// Import schemas from their respective pages
+import { loginSchema } from '@/pages/login';
+import { registerSchema } from '@/pages/register';
+import * as z from 'zod';
+
+// --- Types ---
 interface User {
   id: number;
   username: string;
   email: string;
-  first_name?: string; // Make optional if not always present
-  last_name?: string;  // Make optional
-  // Add other user fields if your UserSerializer returns them
+  first_name?: string;
+  last_name?: string;
 }
+type LoginCredentials = z.infer<typeof loginSchema>;
+// Exclude password2 when defining the type for data sent to the API
+type RegisterApiPayload = Omit<z.infer<typeof registerSchema>, 'password2'>;
 
-interface AuthContextType {
+export interface AuthContextType {
   user: User | null;
   token: string | null;
   loading: boolean;
   isAuthenticated: boolean;
-  loginAction: (credentials: any) => Promise<{ success: boolean; error?: any }>; // Define specific type for credentials later
-  registerAction: (userData: any) => Promise<{ success: boolean; error?: any }>; // Define specific type for userData later
+  // Use specific types for params, use 'unknown' for error return type
+  loginAction: (credentials: LoginCredentials) => Promise<{ success: boolean; error?: unknown }>;
+  registerAction: (userData: RegisterApiPayload) => Promise<{ success: boolean; error?: unknown }>;
   logoutAction: () => void;
 }
 
-// Create context with the defined type, initialized to null
 export const AuthContext = createContext<AuthContextType | null>(null);
 
 interface AuthProviderProps {
-    children: ReactNode; // Type for children prop
+    children: ReactNode;
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
-  const [loading, setLoading] = useState<boolean>(true); // Start loading until checked
+  const [loading, setLoading] = useState<boolean>(true);
   const router = useRouter();
 
   useEffect(() => {
-    // Check for token in localStorage on initial load (client-side only)
     const storedToken = localStorage.getItem('authToken');
     if (storedToken) {
       setToken(storedToken);
-      fetchUser(storedToken); // Fetch user data if token exists
+      fetchUser(storedToken);
     } else {
-      setLoading(false); // No token, stop loading
+      setLoading(false);
     }
-     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []); // Added eslint-disable to prevent warning about missing fetchUser dependency if desired
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchUser = async (currentToken: string) => {
      setLoading(true);
      try {
-       // Set token for this specific request if not already set globally by interceptor
        const config = { headers: { Authorization: `Token ${currentToken}` } };
-       const response = await apiClient.get<User>('/user/', config); // Expect User type in response
+       const response = await apiClient.get<User>('/user/', config);
        setUser(response.data);
-     } catch (error: any) { // Use 'any' or a more specific error type
-       console.error('Failed to fetch user:', error);
-       // Token might be invalid, clear it
-       handleLogout(); // Changed to avoid naming conflict
+     } catch (error) {
+       // Don't need specific error handling here, just log out
+       console.error('Failed to fetch user (likely invalid token):', error);
+       handleLogout();
      } finally {
        setLoading(false);
      }
    };
 
-  // Define credential type based on login form/schema
-  type LoginCredentials = z.infer<typeof loginSchema>; // Assuming loginSchema is imported or defined
-
-  const loginAction = async (credentials: LoginCredentials): Promise<{ success: boolean; error?: any }> => {
+  const loginAction = async (credentials: LoginCredentials): Promise<{ success: boolean; error?: unknown }> => {
     setLoading(true);
     try {
-        // Define expected response type from login endpoint
         interface LoginResponse {
             token: string;
             user_id: number;
@@ -81,22 +84,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('authToken', newToken);
       setToken(newToken);
       setUser({ id: userData.user_id, username: userData.username, email: userData.email });
-      router.push('/dashboard'); // Redirect after login
+      router.push('/dashboard');
       return { success: true };
-    } catch (error: any) {
-      console.error('Login failed:', error.response?.data || error.message);
+    } catch (error) {
+      let errorData: unknown = 'Login failed'; // Use unknown type
+      if (axios.isAxiosError(error)) {
+          console.error('Login failed (Axios):', error.response?.data || error.message);
+          errorData = error.response?.data || error.message;
+      } else {
+          console.error('Login failed (Non-Axios):', error);
+          if (error instanceof Error) errorData = error.message; // Get message if standard Error
+      }
       setLoading(false);
-      return { success: false, error: error.response?.data || 'Login failed' };
+      return { success: false, error: errorData };
     }
   };
 
-  // Define user data type based on registration form/schema
-   type RegisterUserData = z.infer<typeof registerSchema>; // Assuming registerSchema is imported or defined
 
-  const registerAction = async (userData: RegisterUserData): Promise<{ success: boolean; error?: any }> => {
+  // Parameter type now matches the data sent to API (password2 excluded)
+  const registerAction = async (userData: RegisterApiPayload): Promise<{ success: boolean; error?: unknown }> => {
     setLoading(true);
     try {
-        // Define expected response type from register endpoint
         interface RegisterResponse {
             token: string;
             user: User;
@@ -106,22 +114,27 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('authToken', newToken);
       setToken(newToken);
       setUser(newUser);
-      router.push('/dashboard'); // Redirect after registration
+      router.push('/dashboard');
        return { success: true };
-    } catch (error: any) {
-      console.error('Registration failed:', error.response?.data || error.message);
-      setLoading(false);
-      return { success: false, error: error.response?.data || 'Registration failed' };
+    } catch (error) {
+        let errorData: unknown = 'Registration failed'; // Use unknown type
+        if (axios.isAxiosError(error)) {
+            console.error('Registration failed (Axios):', error.response?.data || error.message);
+            errorData = error.response?.data || error.message;
+        } else {
+            console.error('Registration failed (Non-Axios):', error);
+             if (error instanceof Error) errorData = error.message;
+        }
+        setLoading(false);
+        return { success: false, error: errorData };
     }
   };
 
-  // Renamed to avoid conflict with the function name itself
   const handleLogout = () => {
-    setLoading(true);
     localStorage.removeItem('authToken');
     setToken(null);
     setUser(null);
-    router.push('/login');
+    router.replace('/login');
   };
 
   const value: AuthContextType = {
@@ -130,17 +143,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     loading,
     loginAction,
     registerAction,
-    logoutAction: handleLogout, // Use renamed function
+    logoutAction: handleLogout,
     isAuthenticated: !!token && !!user,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };
-
-// Import Zod and schemas if using inferred types (adjust paths)
-import * as z from 'zod';
-// Assuming loginSchema and registerSchema are defined in login.tsx/register.tsx or a shared types file
-// e.g., import { loginSchema } from '@/pages/login';
-// Placeholder schemas if not imported:
-const loginSchema = z.object({ username: z.string(), password: z.string() });
-const registerSchema = z.object({ username: z.string(), email: z.string(), password: z.string(), password2: z.string() });

@@ -9,6 +9,7 @@ import * as z from 'zod';
 import Link from 'next/link';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
 import type { NextPage } from 'next';
+import axios from 'axios'; // Import axios for type checking
 
 // Zod schema for goal form validation
 const goalSchema = z.object({
@@ -19,7 +20,7 @@ const goalSchema = z.object({
 type GoalFormInputs = z.infer<typeof goalSchema>;
 
 // API Payload type
-type GoalPayload = GoalFormInputs; // In this case, it's the same
+type GoalPayload = GoalFormInputs;
 
 const AddGoalPage: NextPage = () => {
   const router = useRouter();
@@ -39,12 +40,19 @@ const AddGoalPage: NextPage = () => {
       };
 
       await apiClient.post('/goals/', payload);
-      router.push('/dashboard'); // Redirect on success
-    } catch (err: any) {
-      console.error('Failed to add goal:', err.response?.data || err.message);
-      const errorDetail = err.response?.data?.detail || err.response?.data?.goal_text || JSON.stringify(err.response?.data) || 'Failed to save goal. Please try again.';
+      router.push('/dashboard');
+    } catch (error) { // Use generic error, check type below
+      let errorDetail = 'Failed to save goal. Please try again.'; // Default message
+       if (axios.isAxiosError(error)) {
+           console.error('Failed to add goal (Axios):', error.response?.data || error.message);
+           // Try to extract specific backend error messages
+           const backendError = error.response?.data;
+           errorDetail = backendError?.detail || backendError?.goal_text || JSON.stringify(backendError) || error.message;
+       } else {
+            console.error('Failed to add goal (Non-Axios):', error);
+       }
       setApiError(errorDetail);
-      setLoading(false);
+      setLoading(false); // Ensure loading stops on error
     }
   };
 
@@ -52,10 +60,7 @@ const AddGoalPage: NextPage = () => {
     <ProtectedRoute>
       <Layout title="Add Fitness Goal">
         <div className="max-w-xl mx-auto mt-8">
-           <Link
-             href="/dashboard"
-             className="inline-flex items-center text-sm text-primary hover:text-primary-dark mb-4"
-             legacyBehavior>
+           <Link href="/dashboard" className="inline-flex items-center text-sm text-primary hover:text-primary-dark mb-4">
                <ArrowLeftIcon className="h-4 w-4 mr-1" />
                Back to Dashboard
            </Link>

@@ -2,12 +2,10 @@ import React from 'react';
 import Link from 'next/link';
 import Image from 'next/image'; // Import Next.js Image component
 import { useAuth } from '@/hooks/useAuth'; // Adjust path
-import { useRouter } from 'next/router';
 import { ArrowLeftOnRectangleIcon, UserPlusIcon, ChartBarIcon, HomeIcon } from '@heroicons/react/24/outline';
 
 const Navbar: React.FC = () => { // Use React.FC for functional component type
   const { user, logoutAction, loading, isAuthenticated } = useAuth();
-  const router = useRouter(); // No changes needed for router
 
   const handleLogout = (): void => { // Add void return type
     logoutAction();
