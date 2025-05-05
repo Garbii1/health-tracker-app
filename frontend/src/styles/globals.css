@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Optional: Add base styles */
+body {
+  @apply bg-background text-text_primary antialiased;
+}
+
+/* Optional: Style for accessibility focus rings */
+*:focus-visible {
+    @apply outline-none ring-2 ring-offset-2 ring-primary;
+}
+
+/* Optional: Base link styling */
+a {
+   @apply text-primary hover:text-primary-dark transition-colors duration-200;
+}
