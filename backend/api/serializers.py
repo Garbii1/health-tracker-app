@@ -7,41 +7,60 @@ from django.core.exceptions import ValidationError as DjangoValidationError
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
-        fields = ('id', 'username', 'email', 'first_name', 'last_name') # Exclude password
+        fields = ('id', 'username', 'email', 'first_name', 'last_name')
 
 class RegisterSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True, validators=[validate_password])
-    # TEMPORARY: Remove write_only and required
-    password2 = serializers.CharField(label="Confirm password") # TEMPORARY CHANGE
+    # --- TEMPORARY DEBUG CHANGE ---
+    # Removed write_only=True and required=True
+    password2 = serializers.CharField(label="Confirm password")
+    # --- END TEMPORARY DEBUG CHANGE ---
     email = serializers.EmailField(required=True)
 
     class Meta:
         model = User
-        # Keep password2 in fields for now
+        # Keep password2 in fields so serializer processes it from input initially
         fields = ('username', 'password', 'password2', 'email', 'first_name', 'last_name')
         extra_kwargs = {
             'password': {'write_only': True},
-            # Remove password2 from extra_kwargs temporarily if needed
-            # 'password2': {'write_only': True} # TEMPORARY REMOVAL
+            # password2 is no longer write_only temporarily
         }
 
     def validate(self, attrs):
-        # Keep validation logic
         password = attrs.get('password')
         password2 = attrs.get('password2')
+
+        # Explicitly check if password2 exists now, since it's not required=True anymore
         if not password2:
-             raise serializers.ValidationError({"password2": "Password confirmation is required."})
+             raise serializers.ValidationError({"password2": "Password confirmation is required."}) # This might be hit now
+
         if password != password2:
             raise serializers.ValidationError({"password": "Password fields didn't match."})
-        # ... email check ...
+
+        if User.objects.filter(email=attrs['email']).exists():
+            raise serializers.ValidationError({"email": "Email already exists."})
         return attrs
 
     def create(self, validated_data):
-        # Explicitly pop password2 as it's no longer write_only
-        validated_data.pop('password2', None)
-        # ... rest of create method ...
-        user = User.objects.create(**validated_data) # Simplified create
-        user.set_password(validated_data['password']) # Set password AFTER initial create
+        # Explicitly remove password2 before creating the user, as it's NOT write_only now
+        password2 = validated_data.pop('password2', None) # Remove it safely
+
+        # We also need to remove password before mass assignment if it wasn't write_only
+        # But since password IS write_only, it won't be in validated_data passed here by default DRF create.
+        # However, to be safe, let's pop it AFTER we use it.
+        password_to_set = validated_data.pop('password')
+
+        # Create user with remaining validated data
+        user = User.objects.create(**validated_data)
+        user.set_password(password_to_set) # Set the password correctly
+
+        # Re-add password validation here if needed (though validators=[] should handle it)
+        # try:
+        #     validate_password(password_to_set, user)
+        # except DjangoValidationError as e:
+        #     user.delete() # Rollback
+        #     raise serializers.ValidationError({'password': list(e.messages)})
+
         user.save()
         return user
 
